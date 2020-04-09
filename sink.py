@@ -1,5 +1,4 @@
 import sys
-import time
 import zmq
 
 
@@ -21,9 +20,29 @@ class K_means_Sink:
 
 	def run(self):
 		print("Sink waiting")
-		message = self.fan_pull.recv()
-		print(message)
+		from_fan = self.fan_pull.recv_json()
+		print(f"Number of tasks: {from_fan['n_tasks']}")
+		clasify_matrix = self.init_matrix_zeros(from_fan['n_clusters'])
+		for i in range(from_fan['n_tasks']):
+			clasification = self.fan_pull.recv_json()["clasification"]
+			self.update_clasify_matrix(clasify_matrix,clasification)
+
+		self.get_mean(clasify_matrix)	
+
 		self.fan_push.send(b"Llego")
+
+	def init_matrix_zeros(self,n):
+		clasify_matrix = list()
+		for i in range(n):
+			data = [0,0]
+			clasify_matrix.append(data)
+		return clasify_matrix
+
+	def update_clasify_matrix(self,clasify_matrix,clasification):
+		for i,c in enumerate(clasification):
+			clasify_matrix[i][0] += c[0]
+			clasify_matrix[i][1] += c[1]
+
 
 
 if __name__ == "__main__":

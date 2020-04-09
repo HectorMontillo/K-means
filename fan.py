@@ -58,10 +58,25 @@ class K_means_Fan:
 		while True:
 			
 			# send sink the number of results
-			self.sink_push.send(str(self.number_tasks).encode('ascii'))
+			self.sink_push.send_json({
+				"n_tasks":self.number_tasks,
+				"n_clusters": self.k
+			})
 
 			# send workers the taks
-
+			ci = 0
+			cj = self.n
+			for i in range(self.number_tasks):
+				print(f"task:{i}, ci:{ci}, cj:{cj}")
+				#self.data_set.iloc[ci:cj, :]
+				row = [ci,cj]
+				
+				self.workers.send_json({
+					"clusters":self.clusters,
+					"rows": row
+				})
+				ci += self.n
+				cj += self.n
 			# recive the new clusters from sink
 			message = self.sink_pull.recv()
 			print(message)
