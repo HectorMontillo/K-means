@@ -32,12 +32,18 @@ class K_means_Worker:
 			ci = task["rows"][0]
 			cj = task["rows"][1]
 			samples = self.data_set.iloc[ci:cj, :].to_dict(orient='split')['data']
+
 			#calc the distance betwn the samples set and all clusters
 			distances_matrix = self.euclidean_distance(task["clusters"],samples)
+
 			#clasify the samples and sum
-			clasify_matrix = self.clasify(distances_matrix)
-			print("Clasification: ")
-			self.print_clasify(clasify_matrix)
+			if task["finished"]:
+				clasify_matrix = self.clasify_finished(distances_matrix, ci)
+			else:
+				clasify_matrix = self.clasify(distances_matrix,samples)
+				print("Clasification: ")
+				self.print_clasify(clasify_matrix)
+
 			#send result to sink
 			self.sink.send_json({
 				"clasification": clasify_matrix
@@ -58,19 +64,37 @@ class K_means_Worker:
 			distances_matrix.append(distances_list)
 		return distances_matrix
 
-	def clasify(self,distances_matrix):
-		clasify_matrix = self.init_matrix_zeros(len(distances_matrix[0]))
-		for p in distances_matrix:
-			res = min(enumerate(p), key=itemgetter(1))
-			clasify_matrix[res[0]][0] += res[1]
-			clasify_matrix[res[0]][1] += 1
+	def clasify(self,distances_matrix,samples):
+		clasify_matrix = self.init_matrix_zeros(len(distances_matrix[0]),len(samples[0]))
+		for i,p in enumerate(distances_matrix):
+			min_index = min(enumerate(p), key=itemgetter(1))[0]
+			for j in range(len(samples[0])):
+				clasify_matrix[min_index][0][j] += samples[i][j]
+			clasify_matrix[min_index][1] += 1
 		return clasify_matrix
 
-	def init_matrix_zeros(self,n):
+	def clasify_finished(self,distances_matrix, ci):
+		clasify_matrix = self.init_matrix_zeros_finished(len(distances_matrix[0]))
+		for i,p in enumerate(distances_matrix):
+			min_index = min(enumerate(p), key=itemgetter(1))[0]
+			clasify_matrix[min_index].append(i+ci)
+		return clasify_matrix
+
+	def init_matrix_zeros(self,n_clusters, dim):
 		clasify_matrix = list()
-		for i in range(n):
-			data = [0,0]
+		for _ in range(n_clusters):
+			point = list()
+			for _ in range(dim):
+				point.append(0)
+			data = [point,0]
 			clasify_matrix.append(data)
+		return clasify_matrix
+
+	def init_matrix_zeros_finished(self,n_clusters):
+		clasify_matrix = list()
+		for _ in range(n_clusters):
+			point = list()
+			clasify_matrix.append(point)
 		return clasify_matrix
 
 	def print_clasify(self,clasify_matrix):

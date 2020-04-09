@@ -5,8 +5,9 @@ import numpy as np
 import math
 
 class K_means_Fan:
-	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.001):
+	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.00001):
 		#Initial data
+		self.data_set_file = data_set
 		self.data_set = self.read_data(data_set)[target_columns]
 		self.k = k #number of clusters
 		self.n = n #number of samples to send to workers
@@ -55,12 +56,16 @@ class K_means_Fan:
 		
 		self.initialize_clusters()
 		iterations = 0
+		finished = False
+
 		while True:
 			
 			# send sink the number of results
 			self.sink_push.send_json({
+				"finished": finished,
 				"n_tasks":self.number_tasks,
-				"n_clusters": self.k
+				"n_clusters": self.k,
+				"dim": len(self.target_columns)
 			})
 
 			# send workers the taks
@@ -72,26 +77,57 @@ class K_means_Fan:
 				row = [ci,cj]
 				
 				self.workers.send_json({
+					"finished": finished,
 					"clusters":self.clusters,
 					"rows": row
 				})
 				ci += self.n
 				cj += self.n
 			# recive the new clusters from sink
-			message = self.sink_pull.recv()
-			print(message)
+			if finished:
+				clasification = self.sink_pull.recv_json()["clasification"]
+				break
+			else:
+				new_clusters = self.sink_pull.recv_json()["new_clusters"]
+				print(new_clusters)
+			
 
 			# compare clusters to stop
 			if(iterations >= self.max_iterations):
-				break
-			iterations+=1
-			break
+				finished = True
+				print("Iteration limit reached!")
+			elif self.compare_clusters(new_clusters):
+				finished = True
+				print("Tolerance acepted!")
+			else:
+				
+				iterations+=1
+			self.clusters = new_clusters
 
-		
+		self.check_clasification(clasification)
+	
+	def check_clasification(self,clasification):
+		df = pd.read_csv(self.data_set_file).iloc[:,-1].to_dict()
+		for i,c in enumerate(clasification):
+			print(f"Cluster: {i}")
+			for s in c:
+				print(f"Sample: {s}, Clasification: {df[s]}")
+
+
 	def initialize_clusters(self):
 		self.clusters = self.data_set.sample(n=self.k).to_dict(orient='split')['data']
 		print(self.clusters)
 		#print(self.clusters.to_dict(orient='split'))
+
+	def compare_clusters(self, new_clusters):
+		#map(,zip(self.clusters,new_clusters))
+		#print(self.clusters, new_clusters)
+		for i in range(len(self.clusters)):
+			for j in range(len(self.clusters[0])):
+				if(abs(self.clusters[i][j]-new_clusters[i][j]) > self.tolerance):
+					return False
+		return True
+
 
 
 if __name__ == "__main__":
