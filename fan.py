@@ -3,9 +3,11 @@ import sys
 import pandas as pd
 import numpy as np
 import math
+from tabulate import tabulate
+import os
 
 class K_means_Fan:
-	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.00001):
+	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.000000000001,check_clasification=True):
 		#Initial data
 		self.data_set_file = data_set
 		self.data_set = self.read_data(data_set)[target_columns]
@@ -43,23 +45,24 @@ class K_means_Fan:
 		self.sink_pull.bind(f"tcp://*:{self.port_sink}")
 
 	def read_data(self,data_set):
-		return pd.read_csv(data_set)
+		df = pd.read_csv(data_set)
+		return df.sample(frac=1)
 
 
 	def run(self):
-		print("Press enter when workers and sink are ready...")
-		_ = input()
-		print("sending tasks to workers")
+		print("Press enter when workers and sink are ready...", end='')
+		input()
+		#sys.stdout.flush()
 
 
 		print(f"Number of samples: {self.number_samples}, Number of task per iteration: {self.number_tasks}")
-		
+		print("Initial Clusters:")
+
 		self.initialize_clusters()
 		iterations = 0
 		finished = False
 
 		while True:
-			
 			# send sink the number of results
 			self.sink_push.send_json({
 				"finished": finished,
@@ -67,15 +70,12 @@ class K_means_Fan:
 				"n_clusters": self.k,
 				"dim": len(self.target_columns)
 			})
-
 			# send workers the taks
 			ci = 0
 			cj = self.n
 			for i in range(self.number_tasks):
-				print(f"task:{i}, ci:{ci}, cj:{cj}")
-				#self.data_set.iloc[ci:cj, :]
+				#print(f"task:{i}, ci:{ci}, cj:{cj}")
 				row = [ci,cj]
-				
 				self.workers.send_json({
 					"finished": finished,
 					"clusters":self.clusters,
@@ -88,10 +88,9 @@ class K_means_Fan:
 				clasification = self.sink_pull.recv_json()["clasification"]
 				break
 			else:
+				print(f"Iteration: {iterations}")
 				new_clusters = self.sink_pull.recv_json()["new_clusters"]
-				print(new_clusters)
-			
-
+				self.print(new_clusters,self.target_columns)
 			# compare clusters to stop
 			if(iterations >= self.max_iterations):
 				finished = True
@@ -100,7 +99,6 @@ class K_means_Fan:
 				finished = True
 				print("Tolerance acepted!")
 			else:
-				
 				iterations+=1
 			self.clusters = new_clusters
 
@@ -108,15 +106,22 @@ class K_means_Fan:
 	
 	def check_clasification(self,clasification):
 		df = pd.read_csv(self.data_set_file).iloc[:,-1].to_dict()
+		class_dict = dict()
 		for i,c in enumerate(clasification):
-			print(f"Cluster: {i}")
+			#print(f"Cluster: {i}")
+			class_dict[f"cluster_{i}"] = dict()
 			for s in c:
-				print(f"Sample: {s}, Clasification: {df[s]}")
+				#print(f"Sample: {s}, Clasification: {df[s]}")
+				try:
+					class_dict[f"cluster_{i}"][f"{df[s]}"] += 1
+				except:
+					class_dict[f"cluster_{i}"][f"{df[s]}"] = 1
 
+		self.print(class_dict.items())
 
 	def initialize_clusters(self):
 		self.clusters = self.data_set.sample(n=self.k).to_dict(orient='split')['data']
-		print(self.clusters)
+		self.print(self.clusters,self.target_columns)
 		#print(self.clusters.to_dict(orient='split'))
 
 	def compare_clusters(self, new_clusters):
@@ -128,8 +133,9 @@ class K_means_Fan:
 					return False
 		return True
 
-
-
+	def print(self,matrix,headers=[]):
+		print(tabulate(matrix,headers=headers,showindex="always",tablefmt="github"))
+	
 if __name__ == "__main__":
 		try:
 				data_set = sys.argv[1]
@@ -141,36 +147,3 @@ if __name__ == "__main__":
 
 		fan = K_means_Fan(data_set,k,target_columns,sink_address)
 		fan.run()
-		
-
-
-'''
-
-context = zmq.Context()
-
-# socket with workers
-workers = context.socket(zmq.PUSH)
-workers.bind("tcp://*:5557")
-
-# socket with sink
-sink = context.socket(zmq.PUSH)
-sink.connect("tcp://localhost:5558")
-
-
-print("Press enter when workers are ready...")
-_ = input()
-print("sending tasks to workers")
-
-sink.send(b'0')
-
-
-totalTime = 0
-for task in range(100):
-		workload = random.randint(1,100)
-		totalTime += workload
-		workers.send_string(u'%i' % workload)
-
-print("Total expected cost: %s msec" % totalTime)
-while True:
-		pass
-'''

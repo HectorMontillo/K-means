@@ -1,6 +1,6 @@
 import sys
 import zmq
-
+from tabulate import tabulate
 
 class K_means_Sink:
 	def __init__(self,port_pull,fan_address):
@@ -29,18 +29,20 @@ class K_means_Sink:
 				for i in range(from_fan['n_tasks']):
 					clasification = self.fan_pull.recv_json()["clasification"]
 					clasify_matrix = self.update_clasify_matrix_finished(clasify_matrix,clasification)
+				#self.print(clasify_matrix)
+				print("New clusters: ")
 				print(clasify_matrix)
 				self.fan_push.send_json({
 					"clasification": clasify_matrix
 				})
 				print("Finished")
-				break
+				#break
 			else:
 				clasify_matrix = self.init_matrix_zeros(from_fan['n_clusters'],from_fan['dim'])
 				for i in range(from_fan['n_tasks']):
 					clasification = self.fan_pull.recv_json()["clasification"]
 					clasify_matrix = self.update_clasify_matrix(clasify_matrix,clasification)
-				print(clasify_matrix)
+				self.print(clasify_matrix)
 				new_clusters = self.get_mean(clasify_matrix)	
 				self.fan_push.send_json({
 					"new_clusters": new_clusters
@@ -84,8 +86,9 @@ class K_means_Sink:
 			clusters.append(cluster)
 		return clusters
 
-
-
+	def print(self,matrix,headers=[]):
+		print(tabulate(matrix,headers=headers,showindex="always",tablefmt="github"))
+	
 if __name__ == "__main__":
 	try:
 		port_pull = sys.argv[1]
@@ -96,32 +99,3 @@ if __name__ == "__main__":
 	sink = K_means_Sink(port_pull,fan_address)
 	sink.run()
 		
-
-
-'''
-context = zmq.Context()
-
-fan = context.socket(zmq.PULL)
-fan.bind("tcp://*:5558")
-
-# Wait for start of batch
-s = fan.recv()
-
-# Start our clock now
-tstart = time.time()
-
-# Process 100 confirmations
-for task in range(100):
-		print(task)
-		s = fan.recv()
-		if task % 10 == 0:
-				sys.stdout.write(':')
-		else:
-				sys.stdout.write('.')
-		sys.stdout.flush()
-		print("-")
-
-# Calculate and report duration of batch
-tend = time.time()
-print("Total elapsed time: %d msec" % ((tend-tstart)*1000))
-'''

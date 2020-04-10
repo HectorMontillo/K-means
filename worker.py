@@ -39,10 +39,11 @@ class K_means_Worker:
 			#clasify the samples and sum
 			if task["finished"]:
 				clasify_matrix = self.clasify_finished(distances_matrix, ci)
+				self.print_clasify(clasify_matrix)
 			else:
 				clasify_matrix = self.clasify(distances_matrix,samples)
 				print("Clasification: ")
-				self.print_clasify(clasify_matrix)
+				self.print_clasify(clasify_matrix,["cluster","sum","count"])
 
 			#send result to sink
 			self.sink.send_json({
@@ -97,8 +98,8 @@ class K_means_Worker:
 			clasify_matrix.append(point)
 		return clasify_matrix
 
-	def print_clasify(self,clasify_matrix):
-		print(tabulate(clasify_matrix,headers=["cluster","sum","count"],showindex="always",tablefmt="github"))
+	def print_clasify(self,clasify_matrix,headers=[]):
+		print(tabulate(clasify_matrix,headers=headers,showindex="always",tablefmt="github"))
 		
 
 
