@@ -4,10 +4,11 @@ import pandas as pd
 import numpy as np
 import math
 from tabulate import tabulate
-import os
+import matplotlib.pyplot as plt
+plt.rcParams['axes.facecolor'] = 'black'
 
 class K_means_Fan:
-	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.000000000001,check_clasification=True):
+	def __init__(self,data_set,k,target_columns,sink_address,port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.0000000001):
 		#Initial data
 		self.data_set_file = data_set
 		self.data_set = self.read_data(data_set)[target_columns]
@@ -101,15 +102,45 @@ class K_means_Fan:
 			else:
 				iterations+=1
 			self.clusters = new_clusters
+		
+		if len(self.target_columns) > 2:
+			self.check_clasification(clasification)
+		else:
+			self.plot_clasification(clasification)
 
-		self.check_clasification(clasification)
+	def plot_clasification(self,clasification):
+		df = pd.read_csv(self.data_set_file)
+		x = np.array(df[[self.target_columns[0]]])
+		y = np.array(df[[self.target_columns[1]]])
+		c_x = np.array(self.clusters)[:,0]
+		c_y = np.array(self.clusters)[:,1]
+		'''
+		b: blue
+g: green
+r: red
+c: cyan
+m: magenta
+y: yellow
+k: black
+w: white
+		'''
+		colors = ['b','g','r','c','m','y','w','b','g','r','c','m','y','w','b','g','r','c','m','y',]
+		color_label = [None]*df.shape[0]
+		for i,c in enumerate(clasification):
+			for p in c:
+				color_label[p] = colors[i] 
+		
+	
+		plt.scatter(x, y, c=color_label, s=1)
+		plt.scatter(c_x, c_y, c='w',s=50, marker="x")
+		plt.show()
 	
 	def check_clasification(self,clasification):
 		df = pd.read_csv(self.data_set_file).iloc[:,-1].to_dict()
 		class_dict = dict()
 		for i,c in enumerate(clasification):
 			#print(f"Cluster: {i}")
-			class_dict[f"cluster_{i}"] = dict()
+			class_dict[f"cluster_{i}"] = {"count":len(clasification[i])}
 			for s in c:
 				#print(f"Sample: {s}, Clasification: {df[s]}")
 				try:

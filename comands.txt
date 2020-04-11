@@ -1,3 +1,5 @@
+FOR iris.csv
+
 Launch fan:
 python fan.py iris.csv "[sepal_length,sepal_width,petal_length,petal_width]" 5 localhost:5565
 
@@ -5,5 +7,17 @@ Launch worker:
 python worker.py iris.csv "[sepal_length,sepal_width,petal_length,petal_width]" localhost:5555 localhost:5565
 
 Launch sink
-python sink.py 5565 localhost:5556                                                           
+python sink.py 5565 localhost:5556     
+
+
+FOR a1.csv
+
+Launch fan:
+python fan.py a1.csv "[x,y]" 20 localhost:5565
+
+Launch worker:
+python worker.py a1.csv "[x,y]" localhost:5555 localhost:5565
+
+Launch sink
+python sink.py 5565 localhost:5556  
 

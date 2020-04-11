@@ -1,7 +1,5 @@
-import sys
-import time
+print("init")
+import pandas as pd
+df = pd.read_csv('a1.csv')
 
-for i in range(10):
-  sys.stdout.write("\r{0}>".format("="*i))
-  sys.stdout.flush()
-  time.sleep(0.5)
+print(df.shape)

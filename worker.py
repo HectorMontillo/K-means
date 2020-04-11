@@ -28,7 +28,7 @@ class K_means_Worker:
 		while True:
 			
 			task = self.fan.recv_json()
-			print(f"Task {n_tasks}")
+			#print(f"Task {n_tasks}")
 			ci = task["rows"][0]
 			cj = task["rows"][1]
 			samples = self.data_set.iloc[ci:cj, :].to_dict(orient='split')['data']
@@ -39,11 +39,11 @@ class K_means_Worker:
 			#clasify the samples and sum
 			if task["finished"]:
 				clasify_matrix = self.clasify_finished(distances_matrix, ci)
-				self.print_clasify(clasify_matrix)
+				#self.print_clasify(clasify_matrix)
 			else:
 				clasify_matrix = self.clasify(distances_matrix,samples)
-				print("Clasification: ")
-				self.print_clasify(clasify_matrix,["cluster","sum","count"])
+				#print("Clasification: ")
+				#self.print_clasify(clasify_matrix,["cluster","sum","count"])
 
 			#send result to sink
 			self.sink.send_json({
