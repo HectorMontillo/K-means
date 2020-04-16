@@ -7,8 +7,8 @@ from tabulate import tabulate
 
 
 class K_means_Worker:
-	def __init__(self,data_set,target_columns,fan_address,sink_address):
-		self.data_set = self.read_data(data_set)[target_columns]
+	def __init__(self,data_set,fan_address='localhost:5555' ,sink_address='localhost:5565'):
+		self.data_set = data_set
 		self.fan_address = fan_address
 		self.sink_address = sink_address
 
@@ -22,28 +22,37 @@ class K_means_Worker:
 		self.fan.connect(f"tcp://{self.fan_address}")
 		self.sink.connect(f"tcp://{self.sink_address}")
 
+	def read_data(self,range_rows):
+		samples = list()
+		for i,f in enumerate(open(self.data_set)):
+			if i >= range_rows[0] and i <= range_rows[1]:
+				data = list(map(lambda x: float(x),f.strip('\n').split(',')))
+				samples.append(data)
+			elif i > range_rows[1]:
+				break
+		return samples
+
+
 	def run(self):
 		print("Worker ready and waiting for task...")
 		n_tasks = 0
 		while True:
 			
 			task = self.fan.recv_json()
-			#print(f"Task {n_tasks}")
-			ci = task["rows"][0]
-			cj = task["rows"][1]
-			samples = self.data_set.iloc[ci:cj, :].to_dict(orient='split')['data']
+			samples = self.read_data(task["rows"])
 
 			#calc the distance betwn the samples set and all clusters
 			distances_matrix = self.euclidean_distance(task["clusters"],samples)
 
 			#clasify the samples and sum
 			if task["finished"]:
-				clasify_matrix = self.clasify_finished(distances_matrix, ci)
+				pass
+				clasify_matrix = self.clasify_finished(distances_matrix, task["rows"][0])
 				#self.print_clasify(clasify_matrix)
 			else:
 				clasify_matrix = self.clasify(distances_matrix,samples)
-				#print("Clasification: ")
-				#self.print_clasify(clasify_matrix,["cluster","sum","count"])
+				print("Clasification: ")
+				self.print_clasify(clasify_matrix,["cluster","sum","count"])
 
 			#send result to sink
 			self.sink.send_json({
@@ -52,14 +61,14 @@ class K_means_Worker:
 
 			n_tasks += 1
 
-	def read_data(self,data_set):
-		return pd.read_csv(data_set)
+
 
 	def euclidean_distance(self,clusters,points):
 		distances_matrix = []
 		for p in points:
 			distances_list = []
 			for c in clusters:
+				
 				distance = math.sqrt(sum([(a - b) ** 2 for a, b in zip(p,c)]))
 				distances_list.append(distance)
 			distances_matrix.append(distances_list)
@@ -107,38 +116,8 @@ class K_means_Worker:
 if __name__ == "__main__":
 	try:
 		data_set = sys.argv[1]
-		target_columns = sys.argv[2].strip('[]').split(',')
-		fan_address = sys.argv[3]
-		sink_address = sys.argv[4]
 	except IndexError:
 		print("Aguments mising!")
 
-	worker = K_means_Worker(data_set,target_columns,fan_address,sink_address)
+	worker = K_means_Worker(data_set)
 	worker.run()
-
-
-
-'''
-context = zmq.Context()
-
-work = context.socket(zmq.PULL)
-work.connect("tcp://localhost:5557")
-
-# Socket to send messages to
-sink = context.socket(zmq.PUSH)
-sink.connect("tcp://localhost:5558")
-
-# Process tasks forever
-while True:
-		s = work.recv()
-
-		# Simple progress indicator for the viewer
-		sys.stdout.write('.')
-		sys.stdout.flush()
-
-		# Do the work
-		time.sleep(int(s)*0.001)
-
-		# Send results to sink
-		sink.send(b'')
-'''

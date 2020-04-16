@@ -3,7 +3,7 @@ import zmq
 from tabulate import tabulate
 
 class K_means_Sink:
-	def __init__(self,port_pull,fan_address):
+	def __init__(self,port_pull="5565",fan_address="localhost:5556"):
 		self.port_pull = port_pull
 		self.fan_address = fan_address
 
@@ -25,24 +25,29 @@ class K_means_Sink:
 			
 			print(f"Number of tasks: {from_fan['n_tasks']}")
 			if from_fan["finished"]:
+				pass
+				
 				clasify_matrix = self.init_matrix_zeros_finished(from_fan['n_clusters'])
 				for i in range(from_fan['n_tasks']):
 					clasification = self.fan_pull.recv_json()["clasification"]
 					clasify_matrix = self.update_clasify_matrix_finished(clasify_matrix,clasification)
 				#self.print(clasify_matrix)
-				print("New clusters: ")
-				print(clasify_matrix)
+				#print("New clusters: ")
+				#print(clasify_matrix)
+				
 				self.fan_push.send_json({
 					"clasification": clasify_matrix
 				})
+				
 				print("Finished")
 				#break
+				
 			else:
 				clasify_matrix = self.init_matrix_zeros(from_fan['n_clusters'],from_fan['dim'])
 				for i in range(from_fan['n_tasks']):
 					clasification = self.fan_pull.recv_json()["clasification"]
 					clasify_matrix = self.update_clasify_matrix(clasify_matrix,clasification)
-				self.print(clasify_matrix)
+				#self.print(clasify_matrix)
 				new_clusters = self.get_mean(clasify_matrix)	
 				self.fan_push.send_json({
 					"new_clusters": new_clusters
@@ -90,12 +95,6 @@ class K_means_Sink:
 		print(tabulate(matrix,headers=headers,showindex="always",tablefmt="github"))
 	
 if __name__ == "__main__":
-	try:
-		port_pull = sys.argv[1]
-		fan_address = sys.argv[2]
-	except IndexError:
-		print("Arguments missing!")
-	
-	sink = K_means_Sink(port_pull,fan_address)
+	sink = K_means_Sink()
 	sink.run()
 		
