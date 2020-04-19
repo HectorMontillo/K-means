@@ -2,7 +2,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import pandas as pd
 
-df = pd.read_csv('iris.csv', sep="\t")
+df = pd.read_csv('dataclas.csv', sep=",")
 print("Actual classification")
 print(df.groupby('species').size())
 

@@ -148,6 +148,7 @@ class K_means_Fan:
 		y = np.array(df[['y']])
 		c_x = np.array(self.clusters)[:,0]
 		c_y = np.array(self.clusters)[:,1]
+
 		'''
 		b: blue
 		g: green
@@ -160,9 +161,10 @@ class K_means_Fan:
 		'''
 		colors = ['b','g','r','c','m','y','w','b','g','r','c','m','y','w','b','g','r','c','m','y']
 		color_label = [None]*df.shape[0]
+		print(len(color_label))
 		for i,c in enumerate(clasification):
 			for p in c:
-				color_label[p] = colors[i] 
+				color_label[p-1] = colors[i] 
 		
 	
 		plt.scatter(x, y, c=color_label, s=1)
