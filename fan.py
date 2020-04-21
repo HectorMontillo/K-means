@@ -114,7 +114,7 @@ class K_means_Fan:
 		input()
 		print(f"Number of samples: {self.number_samples}, Number of task per iteration: {self.number_tasks}")
 		print("Initial Clusters:")
-		self.print(self.clusters)
+		#self.print(self.clusters)
 
 		while True:
 			
@@ -131,7 +131,7 @@ class K_means_Fan:
 			else:
 				print(f"Iteration: {self.iteration}")
 				self.new_clusters = self.sink_pull.recv_json()["new_clusters"]
-				self.print(self.new_clusters)
+				#self.print(self.new_clusters)
 
 			# compare clusters to stop
 			self.finish_iterations()
