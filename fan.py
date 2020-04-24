@@ -9,7 +9,7 @@ plt.rcParams['axes.facecolor'] = 'black'
 import random
 
 class K_means_Fan:
-	def __init__(self,data_set,k,sink_address='localhost:5565',port_worker='5555',port_sink='5556',max_iterations=1000, n=10,tolerance=0.0):
+	def __init__(self,data_set,k,sink_address='localhost:5565',port_worker='5555',port_sink='5556',max_iterations=1000, n=100,tolerance=0.0):
 		#Initial data
 		self.data_set = data_set 
 		self.k = k #number of clusters
@@ -18,7 +18,7 @@ class K_means_Fan:
 		self.tolerance = tolerance
 
 		#data
-		self.dimentions = self.get_dimentions()
+		#self.dimentions = self.get_dimentions()
 		self.number_samples = self.get_number_samples()
 		self.number_tasks = math.ceil(self.number_samples/self.n)
 
@@ -47,10 +47,12 @@ class K_means_Fan:
 		self.sink_pull.bind(f"tcp://*:{self.port_sink}")
 
 	def get_number_samples(self):
+		print("Getting number of samples: ", end='')
 		with open(self.data_set) as f:
 			for i, _ in enumerate(f):
 				pass
-		return i
+		print(i+1)
+		return i + 1
 
 	def get_dimentions(self):
 		with open(self.data_set) as f:
@@ -59,8 +61,11 @@ class K_means_Fan:
 	def read_data(self, rows):
 		samples = list()
 		for i,f in enumerate(open(self.data_set)):
+			f = f.strip()
 			if i in rows:
-				data = list(map(lambda x: float(x),f.strip('\n').split(',')))
+				#data = list(map(lambda x: float(x),f.strip('\n').split(',')))
+				#data = map(lambda t: t.split(' '),map(lambda t: t[1:-1], f.split(',')))
+				data = dict(map(lambda t: map(int,t.split(' ')),map(lambda t: t[1:-1], f.split(','))))
 				samples.append(data)
 		return samples
 
@@ -68,13 +73,13 @@ class K_means_Fan:
 		self.sink_push.send_json({
 				"finished": self.finished,
 				"n_tasks":self.number_tasks,
-				"n_clusters": self.k,
-				"dim": self.dimentions
+				#"n_clusters": self.k,
+				#"dim": self.dimentions
 			})
 
 	def distribute_load(self):
-		ci = 1
-		cj = self.n
+		ci = 0
+		cj = self.n - 1
 		for i in range(self.number_tasks):
 			row = [ci,cj]
 			self.workers.send_json({
@@ -97,14 +102,25 @@ class K_means_Fan:
 		self.clusters = self.new_clusters
 
 	def init_clusters(self):
-		return self.read_data(random.sample(range(1, self.number_samples+1), self.k))
+		print("Initialating clusters.")
+		return self.read_data(random.sample(range(0, self.number_samples), self.k))
 
 	def compare_clusters(self):
+		for i in range(len(self.clusters)):
+			for k,v in self.clusters[i].items():
+				try:
+					if(abs(v - self.new_clusters[i][k]) > self.tolerance):
+						return False
+				except KeyError:
+					return False
+		return True
+		'''
 		for i in range(len(self.clusters)):
 			for j in range(len(self.clusters[0])):
 				if(abs(self.clusters[i][j]-self.new_clusters[i][j]) > self.tolerance):
 					return False
 		return True
+		'''
 
 	def print(self,matrix,headers=[]):
 		print(tabulate(matrix,headers=headers,showindex="always",tablefmt="github"))
@@ -112,9 +128,8 @@ class K_means_Fan:
 	def run(self):
 		print("Press enter when workers and sink are ready...", end='')
 		input()
-		print(f"Number of samples: {self.number_samples}, Number of task per iteration: {self.number_tasks}")
-		print("Initial Clusters:")
-		#self.print(self.clusters)
+		print(f"Number of task per iteration: {self.number_tasks}")
+		#print(self.clusters)
 
 		while True:
 			
@@ -126,7 +141,8 @@ class K_means_Fan:
 
 			# recive the new clusters from sink
 			if self.finished:
-				clasification = self.sink_pull.recv_json()["clasification"]
+				name_file = self.sink_pull.recv_json()["file"]
+				print("Result saved:",name_file)
 				break
 			else:
 				print(f"Iteration: {self.iteration}")
@@ -136,12 +152,13 @@ class K_means_Fan:
 			# compare clusters to stop
 			self.finish_iterations()
 			
-		
+		'''
 		if self.dimentions > 2:
 			self.check_clasification(clasification)
 		else:
 			self.plot_clasification(clasification)
-
+		'''
+		
 	def plot_clasification(self,clasification):
 		df = pd.read_csv(self.data_set)
 		x = np.array(df[['x']])

@@ -1,6 +1,9 @@
 import sys
 import zmq
 from tabulate import tabulate
+from os import path
+from os import remove
+
 
 class K_means_Sink:
 	def __init__(self,port_pull="5565",fan_address="localhost:5556"):
@@ -25,71 +28,80 @@ class K_means_Sink:
 			
 			print(f"Number of tasks: {from_fan['n_tasks']}")
 			if from_fan["finished"]:
-				pass
+				clasify_dict =  self.fan_pull.recv_json()
 				
-				clasify_matrix = self.init_matrix_zeros_finished(from_fan['n_clusters'])
-				for i in range(from_fan['n_tasks']):
-					clasification = self.fan_pull.recv_json()["clasification"]
-					clasify_matrix = self.update_clasify_matrix_finished(clasify_matrix,clasification)
-				#self.print(clasify_matrix)
-				#print("New clusters: ")
-				#print(clasify_matrix)
+				for i in range(from_fan['n_tasks']-1):
+					clasify_dict_worker =  self.fan_pull.recv_json()
+					clasify_dict = self.update_clasify_dict_finish(clasify_dict,clasify_dict_worker)
 				
+				self.save_clasify(clasify_dict, 'clasification.txt')
 				self.fan_push.send_json({
-					"clasification": clasify_matrix
+					"file": 'clasification.txt'
 				})
-				
 				print("Finished")
 				#break
-				
 			else:
-				clasify_matrix = self.init_matrix_zeros(from_fan['n_clusters'],from_fan['dim'])
-				for i in range(from_fan['n_tasks']):
-					clasification = self.fan_pull.recv_json()["clasification"]
-					clasify_matrix = self.update_clasify_matrix(clasify_matrix,clasification)
-				#self.print(clasify_matrix)
-				new_clusters = self.get_mean(clasify_matrix)	
+				clasify_dict =  self.fan_pull.recv_json()
+				#print(clasify_dict.keys())
+				for i in range(from_fan['n_tasks']-1):
+					clasify_dict_worker =  self.fan_pull.recv_json()
+					clasify_dict = self.update_clasify_dict(clasify_dict,clasify_dict_worker)
+				new_clusters = self.get_mean(clasify_dict)
+	
 				self.fan_push.send_json({
 					"new_clusters": new_clusters
 				})
+	def save_clasify(self,clasify_dict,namefile):
+		if path.exists(namefile):
+			print(f"The file {namefile} already exist! it was remove")
+			remove(namefile)
+		print(f"Saving file {namefile} wait...")
+		with open("./Netflix/proccessed/seq_user_ids.csv", "r") as f:
+			f.readline()
+			id_users = []
+			for row in f:
+				row = row.strip()
+				id_users.append(row.split(',')[0])
+				
+		with open(namefile, "a") as f:
+			f.write('cluster,count\n')
+			for k in clasify_dict.keys():
+				f.write(f'{k},{clasify_dict[k]["count"]}\n')
 
-	def init_matrix_zeros(self,n_clusters, dim):
-		clasify_matrix = list()
-		for _ in range(n_clusters):
-			point = list()
-			for _ in range(dim):
-				point.append(0)
-			data = [point,0]
-			clasify_matrix.append(data)
-		return clasify_matrix
+			f.write('\nseq_id_user,id_user,cluster\n')
+			for k in clasify_dict.keys():
+				for s in clasify_dict[k]['samples']:
+					f.write(f'{s},{id_users[s]},{k}\n')
+		print("Finished succefully!")
 
-	def init_matrix_zeros_finished(self,n_clusters):
-		clasify_matrix = list()
-		for _ in range(n_clusters):
-			point = list()
-			clasify_matrix.append(point)
-		return clasify_matrix
 
-	def update_clasify_matrix(self,clasify_matrix,clasification):
-		for i,c in enumerate(clasification):
-			for j,d in enumerate(c[0]):
-				clasify_matrix[i][0][j] += d
-			clasify_matrix[i][1] += c[1]
-		return clasify_matrix
+	def sum_points(self,x1,x2):
+		sum_p = {**x1,**x2}
+		for k in sum_p.keys():
+			sum_p[k] = x1.get(k,0) + x2.get(k,0)
+		return sum_p
 
-	def update_clasify_matrix_finished(self,clasify_matrix,clasification):
-		for i,c in enumerate(clasification):
-			clasify_matrix[i] += c
-		return clasify_matrix
+	def update_clasify_dict_finish(self,clasify_dict, clasify_dict_worker):
 
-	def get_mean(self,clasify_matrix):
-		clusters = list()
-		for c in clasify_matrix:
-			cluster = list()
-			for d in c[0]:
-				cluster.append(d/c[1])
-			clusters.append(cluster)
-		return clusters
+		for k in clasify_dict.keys():
+			clasify_dict[k]['samples'] += clasify_dict_worker[k]['samples'] 
+			clasify_dict[k]['count'] += clasify_dict_worker[k]['count']
+		return clasify_dict
+
+	def update_clasify_dict(self,clasify_dict, clasify_dict_worker):
+		for k in clasify_dict.keys():
+			clasify_dict[k]['sum'] = self.sum_points(clasify_dict[k]['sum'],clasify_dict_worker[k]['sum']) 
+			clasify_dict[k]['count'] += clasify_dict_worker[k]['count']
+		return clasify_dict
+
+	def get_mean(self, clasify_dict):
+		new_clusters = []
+		for ck in clasify_dict.keys():
+			for k in clasify_dict[ck]['sum'].keys():
+				clasify_dict[ck]['sum'][k] = clasify_dict[ck]['sum'][k]/clasify_dict[ck]['count']
+				
+			new_clusters.append(clasify_dict[ck]['sum'])
+		return new_clusters
 
 	def print(self,matrix,headers=[]):
 		print(tabulate(matrix,headers=headers,showindex="always",tablefmt="github"))
