@@ -4,6 +4,9 @@ import pandas as pd
 import math
 from operator import itemgetter
 from tabulate import tabulate
+from time import time
+import os
+import json
 
 
 class K_means_Worker:
@@ -11,6 +14,9 @@ class K_means_Worker:
 		self.data_set = data_set
 		self.fan_address = fan_address
 		self.sink_address = sink_address
+
+		self.clusters = None
+		self.iteration = None
 
 		self.context = zmq.Context()
 		self.fan = self.context.socket(zmq.PULL)
@@ -23,38 +29,60 @@ class K_means_Worker:
 		self.sink.connect(f"tcp://{self.sink_address}")
 
 	def read_data(self,range_rows):
+		print(".....Reading samples: ", end="")
+		itime = time()
+
 		samples = list()
 		for i,f in enumerate(open(self.data_set)):
 			f = f.strip()
 			if i >= range_rows[0] and i <= range_rows[1]:
-				data = dict(map(lambda t: (t.split(' ')[0],int(t.split(' ')[1])),map(lambda t: t[1:-1], f.split(','))))
+				data = dict(map(lambda t: (t.split(' ')[0],float(t.split(' ')[1])),map(lambda t: t[1:-1], f.split(','))))
 				samples.append(data)
 			elif i > range_rows[1]:
 				break
+
+		etime = time()
+		print(f"time: {(etime - itime):.2f} seconds")
 		return samples
 		
+	def update_clusters(self):
+		print(".....Updating clusters: ", end="")
+		itime = time()
+
+		clusters_file = "clusters.txt"
+		new_clusters = []
+		for f in open(clusters_file):
+			f = f.strip()
+			cluster = json.loads(f)
+			new_clusters.append(cluster)
+		self.clusters = new_clusters
+		etime = time()
+		print(f"time: {(etime - itime):.2f}")
 
 	def run(self):
-		print("Worker ready and waiting for task...")
 		n_tasks = 0
-		while True:
-			
+		while True:	
+			print(f"Task: {n_tasks} ---------------------->")
+			print("Worker ready and waiting for task...")
 			task = self.fan.recv_json()
+			if task["iteration"] != self.iteration:
+				self.update_clusters()
+				self.iteration = task["iteration"]
+
 			samples = self.read_data(task["rows"])
-			print(f"{n_tasks}:---------------->")
 			#print(task)
 			#print(samples)
 			#clasify the samples and sum
+			
 			if task["finished"]:
-				clasify_dict = self.get_clasify_dict_finish(task["clusters"],samples,self.cosine_similarity,task["rows"][0])
+				clasify_dict = self.get_clasify_dict_finish(self.clusters,samples,self.cosine_similarity,task["rows"][0])
 			else:
-				clasify_dict = self.get_clasify_dict(task["clusters"],samples,self.cosine_similarity)
+				clasify_dict = self.get_clasify_dict(self.clusters,samples,self.cosine_similarity)
 			#print(clasify_dict)
 			#send result to sink
 			self.sink.send_json(clasify_dict)
 
 			n_tasks += 1
-
 
 	def euclidean_distance(self,x1,x2):
 		keys = {**x1,**x2}
@@ -87,7 +115,10 @@ class K_means_Worker:
 		return sum_p
 
 	def get_clasify_dict(self,clusters,points,distance_func):
+		#print(clusters)
 		#print('--calc clasify--')
+		print(".....Getting clasify: ", end="")
+		itime = time()
 		clasify_dict = {}
 		for i,c in enumerate(clusters):
 			clasify_dict[i] = {
@@ -107,13 +138,17 @@ class K_means_Worker:
 			
 			clasify_dict[cluster]['sum'] = self.sum_points(clasify_dict[cluster]['sum'],p)
 			clasify_dict[cluster]['count'] += 1
-			
+		etime = time()
+		print(f"time: {(etime - itime):.2f} seconds")	
 		return clasify_dict
 	
 	def get_clasify_dict_finish(self,clusters,points,distance_func,ci):
+		print(".....Getting clasify finish: ", end="")
+		itime = time()
 		clasify_dict = {}
 		for i,c in enumerate(clusters):
 			clasify_dict[i] = {
+						'distance-sum' : 0,
 						'samples': [],
 						'count': 0
 					}
@@ -126,9 +161,11 @@ class K_means_Worker:
 					maximun = distance
 					cluster = j
 			
+			clasify_dict[cluster]['distance-sum'] += maximun
 			clasify_dict[cluster]['samples'].append(ci+i)
 			clasify_dict[cluster]['count'] += 1
-
+		etime = time()
+		print(f"time: {(etime - itime):.2f} seconds")
 		return clasify_dict
 
 	def print_clasify(self,clasify_matrix,headers=[]):

@@ -67,9 +67,9 @@ if __name__ == "__main__":
   
   files = [
     './Netflix/combined_data_1.txt',
-    './Netflix/combined_data_2.txt',
-    './Netflix/combined_data_3.txt',
-    './Netflix/combined_data_4.txt'
+    #'./Netflix/combined_data_2.txt',
+    #'./Netflix/combined_data_3.txt',
+    #'./Netflix/combined_data_4.txt'
   ]
   '''
   files = [
