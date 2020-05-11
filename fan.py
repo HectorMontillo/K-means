@@ -12,13 +12,14 @@ import os
 import json
 
 class K_means_Fan:
-	def __init__(self,data_set,k=0,sink_address='localhost:5565',port_worker='5555',port_sink='5556',max_iterations=1000, n=100,tolerance=0.01,clusters_file=""):
+	def __init__(self,data_set,k=0,sink_address='localhost:5565',port_worker='5555',port_sink='5556',max_iterations=1000, n=500,tolerance=0.01,clusters_file="",batch_size=5000):
 		#Initial data
 		self.data_set = data_set 
 		self.k = k #number of clusters
 		self.n = n #number of samples to send to workers
 		self.max_iterations = max_iterations
 		self.tolerance = tolerance
+		self.batch_size = batch_size
 
 		#data
 		#self.dimentions = self.get_dimentions()
@@ -118,6 +119,21 @@ class K_means_Fan:
 		print(clusters)
 		return clusters
 
+	def create_batchs(self):
+		print(".....Creating batchs: ", end="")
+		itime = time()
+		for i,fr in enumerate(open(self.data_set)):
+			if(i%self.batch_size == 0):
+				fw = open(f"./batch/{i}.txt", "a")
+			
+			fw.write(fr)
+
+			if(i%self.batch_size == self.batch_size-1):
+				fw.close()
+
+		etime = time()
+		print(f"time: {(etime-itime):.2f} seconds")
+
 	def distribute_load(self):
 		print(".....Distributing load to workers: ", end="")
 		itime = time()
@@ -129,6 +145,7 @@ class K_means_Fan:
 				"iteration": self.iteration,
 				"finished": self.finished,
 				#"clusters":self.clusters,
+				"batch": self.batch_size,
 				"rows": row
 			})
 			ci += self.n
@@ -196,7 +213,6 @@ class K_means_Fan:
 			self.finished = False
 			self.run(auto=True)
 		
-
 	def run(self, auto=False):
 		if not auto:
 			print("Press enter when workers and sink are ready...", end='')
@@ -291,10 +307,11 @@ if __name__ == "__main__":
 				print("Loading initial data: ")
 				itime = time()
 				fan = K_means_Fan(data_set,k=k)
+				#fan.create_batchs()
 				etime = time()
 				print(f"Loading initial data: time: {(etime-itime):.2f} seconds\n")
-				fan.elbow_method()
-				#fan.run()
+				#fan.elbow_method()
+				fan.run()
 			except ValueError:
 				if not os.path.exists(k):
 					raise Exception("The cluster file does not exist")
@@ -302,10 +319,11 @@ if __name__ == "__main__":
 				print("Loading initial data: ")
 				itime = time()
 				fan = K_means_Fan(data_set,clusters_file=k)
+				#fan.create_batchs()
 				etime = time()
 				print(f"Loading initial data: time: {(etime-itime):.2f} seconds\n")
 				fan.elbow_method()
-				#fan.run()
+				fan.run()
 
 	except IndexError:
 			print("Mising arguments!")
